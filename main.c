@@ -10,7 +10,6 @@
 #include <sys/mman.h>
 
 #include IMPL
-
 #define DICT_FILE "./dictionary/words.txt"
 
 static double diff_in_second(struct timespec t1, struct timespec t2)
@@ -47,21 +46,26 @@ int main(int argc, char *argv[])
     }
 #else
 
-#include "file.c"
-#include "debug.h"
-#include <fcntl.h>
-#define ALIGN_FILE "align.txt"
-    file_align(DICT_FILE, ALIGN_FILE, MAX_LAST_NAME_SIZE);
-    int fd = open(ALIGN_FILE, O_RDONLY | O_NONBLOCK);
-    off_t fs = fsize( ALIGN_FILE);
-#endif
+    /* Get the file size and malloc an entry pool and a detail pool*/
+    char line1[MAX_LAST_NAME_SIZE];
+    char lineNum;
+    while (fgets(line1, sizeof(line1), fp)) {
+        lineNum++;
+    }
+    entry *entry_pool = (entry *) malloc(sizeof(entry) * lineNum);
+    detail *detail_pool = (detail *) mallo(sizeof(detail)*lineNum);
+    assert(entry_pool && "entry_pool error");
 
     /* build the entry */
     entry *pHead, *e;
-    pHead = (entry *) malloc(sizeof(entry));
+    pHead = entry_pool;
     printf("size of entry : %lu bytes\n", sizeof(entry));
     e = pHead;
     e->pNext = NULL;
+
+    /* build the detail */
+    pHead->pdetail = detail_pool;
+    e->pdetail = pHead->pdetail;
 
 #if defined(__GNUC__)
     __builtin___clear_cache((char *) pHead, (char *) pHead + sizeof(entry));
@@ -73,51 +77,12 @@ int main(int argc, char *argv[])
 #define THREAD_NUM 4
 #endif
 
-    clock_gettime(CLOCK_REALTIME, &start);
-
-    char *map = mmap(NULL, fs, PROT_READ, MAP_SHARED, fd, 0);
-
-    assert(map && "mmap error");
-
-    /* allocate at beginning */
-    entry *entry_pool = (entry *) malloc(sizeof(entry) * fs / MAX_LAST_NAME_SIZE);
-
-    assert(entry_pool && "entry_pool error");
-
-    pthread_setconcurrency(THREAD_NUM + 1);
-
-    pthread_t *tid = (pthread_t *) malloc(sizeof( pthread_t) * THREAD_NUM);
-    append_a **app = (append_a **) malloc(sizeof(append_a *) * THREAD_NUM);
-    for (int i = 0; i < THREAD_NUM; i++)
-        app[i] = new_append_a(map + MAX_LAST_NAME_SIZE * i, map + fs, i, THREAD_NUM, entry_pool + i);
-
-    clock_gettime(CLOCK_REALTIME, &mid);
-    for (int i = 0; i < THREAD_NUM; i++)
-        pthread_create( &tid[i], NULL, (void *) &append, (void *) app[i]);
-
-    for (int i = 0; i < THREAD_NUM; i++)
-        pthread_join(tid[i], NULL);
-
-    entry *etmp;
-    pHead = pHead->pNext;
-    for (int i = 0; i < THREAD_NUM; i++) {
-        if (i == 0) {
-            pHead = app[i]->pHead->pNext;
-            dprintf("Connect %d head string %s %p\n", i, app[i]->pHead->pNext->lastName, app[i]->ptr);
-        } else {
-            etmp->pNext = app[i]->pHead->pNext;
-            dprintf("Connect %d head string %s %p\n", i, app[i]->pHead->pNext->lastName, app[i]->ptr);
-        }
-
-        etmp = app[i]->pLast;
-        dprintf("Connect %d tail string %s %p\n", i, app[i]->pLast->lastName, app[i]->ptr);
-        dprintf("round %d\n", i);
-    }
-
-    clock_gettime(CLOCK_REALTIME, &end);
-    cpu_time1 = diff_in_second(start, end);
+//////////////////////////////////////////////////////////////////////
+pthread_t tid[THREAD_NUM];
+//////////////////////////////////////////////////////////////////////
 
 #else
+
     clock_gettime(CLOCK_REALTIME, &start);
     while (fgets(line, sizeof(line), fp)) {
         while (line[i] != '\0')
@@ -125,10 +90,16 @@ int main(int argc, char *argv[])
         line[i - 1] = '\0';
         i = 0;
         e = append(line, e);
+	
     }
-
+    for (int t = 0; t < THREAD_NUM; t++) {
+	printf("In main: creating thread %d\n", t);
+	pthread_create(&thread[t], NULL, append_detail, detail_pool, t);
+    }
     clock_gettime(CLOCK_REALTIME, &end);
     cpu_time1 = diff_in_second(start, end);
+
+    pthread_exit(NULL);
 
 #endif
 

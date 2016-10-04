@@ -8,6 +8,12 @@
 
 #define OPT 1
 
+typedef struct __PHONE_BOOK_ENTRY {
+    char lastName[MAX_LAST_NAME_SIZE];
+    struct __PHONE_BOOK_ENTRY *pNext;
+    struct _detail *pdetail;
+} entry;
+
 typedef struct _detail {
     char firstName[16];
     char email[16];
@@ -18,17 +24,11 @@ typedef struct _detail {
     char city[16];
     char state[2];
     char zip[5];
+    struct __PHONE_BOOK_ENTRY *pLastName;
+    struct _detail *pdNext;
 } detail;
 
-typedef detail *pdetail;
 
-typedef struct __PHONE_BOOK_ENTRY {
-    char *lastName;
-    struct __PHONE_BOOK_ENTRY *pNext;
-    pdetail dtl;
-} entry;
-
-entry *findName(char lastname[], entry *pHead);
 
 typedef struct _append_a {
     char *ptr;
@@ -39,6 +39,8 @@ typedef struct _append_a {
     entry *pHead;
     entry *pLast;
 } append_a;
+
+entry *findName(char lastname[], entry *pHead);
 
 append_a *new_append_a(char *ptr, char *eptr, int tid, int ntd, entry *start);
 
