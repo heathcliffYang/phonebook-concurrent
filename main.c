@@ -59,8 +59,9 @@ int main(int argc, char *argv[])
 
     char *map = mmap(NULL, sizeof(line1)*lineNum, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-    entry *entry_pool = (entry *) malloc(sizeof(entry)*lineNum*64);
+//    entry *entry_pool = (entry *) malloc(sizeof(entry)*lineNum);
 //    printf("entry_pool is at %p\n", entry_pool);
+    entry *entry_pool = (entry *) malloc(sizeof(entry));
 
     /* build the entry */
     entry *pHead, *e;
@@ -77,7 +78,7 @@ int main(int argc, char *argv[])
 	d[i] = detail_pool[i];
     }
     pHead->pdetail = detail_pool[0];
-    printf("e->pdetail : %p\nd[0]=%p\nd[1]=%p\nd[2]=%p\nd[3]=%p\n", e->pdetail, d[0], d[1], d[2], d[3]);
+//    printf("e->pdetail : %p\nd[0]=%p\nd[1]=%p\nd[2]=%p\nd[3]=%p\n", e->pdetail, d[0], d[1], d[2], d[3]);
 
 #else
     /* build the entry */
@@ -93,9 +94,9 @@ int main(int argc, char *argv[])
 #endif
 
 #if defined(OPT)
-    int concurrency = pthread_setconcurrency(THREAD_NUM+1);
+    pthread_setconcurrency(THREAD_NUM+1);
     pthread_t tid[THREAD_NUM];
-
+    printf("get concurrency: %d\n", pthread_getconcurrency());
     clock_gettime(CLOCK_REALTIME, &start);
 
     int a;
@@ -107,16 +108,17 @@ int main(int argc, char *argv[])
         i = 0;
         e = append(line, e);
         a++;
-	printf("%d : ", a);
+//	printf("%d : ", a);
     }
 
 //    for (int t = 0; t < THREAD_NUM; t++) {
 //	printf("In main: creating thread %d\n", t);
-	pthread_create(&tid[0], NULL, append_detail(d[0], 0, lineNum), NULL);
-	pthread_create(&tid[1], NULL, append_detail(d[1], 1, lineNum), NULL);
-	pthread_create(&tid[2], NULL, append_detail(d[2], 2, lineNum), NULL);
-	pthread_create(&tid[3], NULL, append_detail(d[3], 3, lineNum), NULL);
+	pthread_create(&tid[0], NULL, (void *)append_detail(d[0], 0, lineNum), NULL);
+	pthread_create(&tid[1], NULL, (void *)append_detail(d[1], 1, lineNum), NULL);
+	pthread_create(&tid[2], NULL, (void *)append_detail(d[2], 2, lineNum), NULL);
+	pthread_create(&tid[3], NULL, (void *)append_detail(d[3], 3, lineNum), NULL);
 //    }
+
     /* rove the detail_pool arry */
 
     /* rove the detail_pool arry */
@@ -124,7 +126,13 @@ int main(int argc, char *argv[])
     clock_gettime(CLOCK_REALTIME, &end);
     cpu_time1 = diff_in_second(start, end);
 
-    pthread_exit(NULL);
+    e = pHead;
+
+    while (e!=NULL) {
+	printf("The lastName structure is : %s", e->lastName);
+	e = e->pNext;
+    }
+
 #else
     clock_gettime(CLOCK_REALTIME, &start);
     while (fgets(line, sizeof(line), fp)) {
@@ -166,12 +174,14 @@ int main(int argc, char *argv[])
 
 #if defined(OPT)
     output = fopen("opt.txt", "a");
+//    free(entry_pool);
     /* munmap */
     for (int i = 0; i < THREAD_NUM; i++)
 	munmap(detail_pool[i], sizeof(detail)*lineNum/THREAD_NUM);
 #else
     output = fopen("orig.txt", "a");
 #endif
+
     fprintf(output, "append() findName() %lf %lf\n", cpu_time1, cpu_time2);
     fclose(output);
 
@@ -180,5 +190,8 @@ int main(int argc, char *argv[])
 
     if (pHead->pNext) free(pHead->pNext);
     free(pHead);
+
+    pthread_exit(NULL);
+
     return 0;
 }

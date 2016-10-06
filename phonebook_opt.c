@@ -9,8 +9,10 @@
 entry *findName(char lastName[], entry *pHead)
 {
     while (pHead != NULL) {
-	if (strcasecmp(lastName, pHead->lastName) == 0)
+	if (strcasecmp(lastName, pHead->lastName) == 0) {
+	    printf("find!");
 	    return pHead;
+	}
 	pHead = pHead->pNext;
     }
     return NULL;
@@ -18,10 +20,11 @@ entry *findName(char lastName[], entry *pHead)
 
 entry *append(char lastName[], entry *e)
 {
-    e->pNext = e + sizeof(entry);
+    e->pNext = (entry *) malloc(sizeof(entry));
+//    e->pNext = e + sizeof(entry)/24;
 //    printf("%p ;", sizeof(entry));
     e = e->pNext;
-    printf("e is at %p, append %s, entry is %p\n", e->pNext, lastName, sizeof(entry));
+//    printf("e is at %p, append %s, entry is %p\n", e->pNext, lastName, sizeof(entry));
     strcpy(e->lastName, lastName);
 
     return e;
