@@ -8,9 +8,13 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 
 #include IMPL
 #define DICT_FILE "./dictionary/words.txt"
+#define THREAD_NUM 4
 
 static double diff_in_second(struct timespec t1, struct timespec t2)
 {
@@ -40,14 +44,22 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+
 #if defined(OPT)
+    int fd = open(DICT_FILE, O_RDWR | O_NONBLOCK);
+    FILE *fp_count = fopen(DICT_FILE,"r");
     /* get the file size and malloc an entry pool and a detail pool*/
     char line1[MAX_LAST_NAME_SIZE];
     int lineNum;
-    while (fgets(line1, sizeof(line1), fp)) {
+    while (fgets(line1, sizeof(line1), fp_count)) {
         lineNum++;
     }
-    entry *entry_pool = (entry *) malloc(sizeof(entry)*lineNum);
+
+    printf("The lineNum : %d\n", lineNum);
+
+    char *map = mmap(NULL, sizeof(line1)*lineNum, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+    entry *entry_pool = (entry *) malloc(sizeof(entry)*lineNum*64);
 //    printf("entry_pool is at %p\n", entry_pool);
 
     /* build the entry */
@@ -58,13 +70,14 @@ int main(int argc, char *argv[])
     e->pNext = NULL;
 
     /* build the detail */
-    detail detail_pool[4], d[4];
-    for (int i = 0; i < 4; i++) {
-	detail_pool[i] = mmap(NULL, sizeof(detail)*lineNum/4, PROT_READ, MAP_SHARED, fp, 0);
+    detail *detail_pool[THREAD_NUM], *d[THREAD_NUM];
+    for (int i = 0; i < THREAD_NUM; i++) {
+//	detail_pool[i] = (detail *) malloc(sizeof(detail)*lineNum/THREAD_NUM);
+	detail_pool[i] = (detail *) malloc(sizeof(detail));
 	d[i] = detail_pool[i];
     }
     pHead->pdetail = detail_pool[0];
-//    printf("e->pdetail : %p\n", e->pdetail);
+    printf("e->pdetail : %p\nd[0]=%p\nd[1]=%p\nd[2]=%p\nd[3]=%p\n", e->pdetail, d[0], d[1], d[2], d[3]);
 
 #else
     /* build the entry */
@@ -80,25 +93,30 @@ int main(int argc, char *argv[])
 #endif
 
 #if defined(OPT)
-
-#ifndef THREAD_NUM
-#define THREAD_NUM 4
-#endif
+    int concurrency = pthread_setconcurrency(THREAD_NUM+1);
     pthread_t tid[THREAD_NUM];
 
     clock_gettime(CLOCK_REALTIME, &start);
+
+    int a;
+
     while (fgets(line, sizeof(line), fp)) {
         while (line[i] != '\0')
             i++;
         line[i - 1] = '\0';
         i = 0;
         e = append(line, e);
-	
+        a++;
+	printf("%d : ", a);
     }
-    for (int t = 0; t < THREAD_NUM; t++) {
-	printf("In main: creating thread %d\n", t);
-	pthread_create(&tid[t], NULL, append_detail(d[t], t),NULL);
-    }
+
+//    for (int t = 0; t < THREAD_NUM; t++) {
+//	printf("In main: creating thread %d\n", t);
+	pthread_create(&tid[0], NULL, append_detail(d[0], 0, lineNum), NULL);
+	pthread_create(&tid[1], NULL, append_detail(d[1], 1, lineNum), NULL);
+	pthread_create(&tid[2], NULL, append_detail(d[2], 2, lineNum), NULL);
+	pthread_create(&tid[3], NULL, append_detail(d[3], 3, lineNum), NULL);
+//    }
     /* rove the detail_pool arry */
 
     /* rove the detail_pool arry */
@@ -137,6 +155,7 @@ int main(int argc, char *argv[])
 #if defined(__GNUC__)
     __builtin___clear_cache((char *) pHead, (char *) pHead + sizeof(entry));
 #endif
+
     /* compute the execution time */
     clock_gettime(CLOCK_REALTIME, &start);
     findName(input, e);
@@ -144,6 +163,7 @@ int main(int argc, char *argv[])
     cpu_time2 = diff_in_second(start, end);
 
     FILE *output;
+
 #if defined(OPT)
     output = fopen("opt.txt", "a");
     /* munmap */
